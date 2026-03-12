@@ -6,10 +6,10 @@ from src.tools.math_tool import calculator_tool
 
 def create_advanced_agent(api_key: str):
     llm = ChatOpenAI(
-        model="deepseek-chat",  # 换成 DeepSeek 的模型名
+        model="deepseek-chat",  
         temperature=0, 
         api_key=api_key,
-        base_url="https://api.deepseek.com/v1"  # 👈 就是缺了这句最关键的路由地址！
+        base_url="https://api.deepseek.com/v1"  
     )
     tools = [WeatherTool(), get_search_tool(), calculator_tool]
     
