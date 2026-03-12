@@ -1,5 +1,6 @@
 import operator
 from typing import Annotated, Self, Sequence, TypedDict
+from langchain.messages import HumanMessage
 from langchain_core.messages import BaseMessage,AIMessage
 from langchain_openai import ChatOpenAI
 from langgraph.graph import StateGraph,END
@@ -8,6 +9,7 @@ from langgraph.prebuilt import ToolNode
 from src.chains.intent_recognition_chain import get_intent_chain
 from src.tools.order_query_tool import order_query_tool
 from src.tools.human_transfer_tool import human_transfer_tool
+from src.tools.knowledge_base_tool import knowledge_base_tool
 
 # 1. 定义图的全局状态 (State)
 class AgentState(TypedDict):
@@ -24,7 +26,7 @@ class CustomerServiceWorkflow:
             api_key="sk-c45174ee28f847f8bf59669c79cc7383",
             base_url="https://api.deepseek.com/v1"
         )
-        self.tools=[order_query_tool,human_transfer_tool]
+        self.tools=[order_query_tool,human_transfer_tool,knowledge_base_tool]
         self.llm_with_tools=self.llm.bind_tools(self.tools)
 
         #初始化意图链
@@ -71,11 +73,35 @@ class CustomerServiceWorkflow:
 
 
     # --- 节点逻辑实现 ---
-    def recognize_intent_node(self,state:AgentState):
+    def recognize_intent_node(self, state: AgentState):
         """意图识别节点"""
-        intent = self.intent_chain.invoke({"messages":state["messages"]})
-        needs_human=(intent.intent_type=="complain")
-        return {"intent_type":intent.intent_type,"needs_human":needs_human}
+        
+        # 深度优化点：只提取对话中的文本内容，完全丢弃工具调用状态
+        # 这能确保发给意图识别链的消息队列永远只有简单的 Human 和 Assistant 对话
+        clean_messages = []
+        for msg in state["messages"]:
+            # 只有当消息有纯文本内容时才保留
+            if hasattr(msg, 'content') and msg.content and not hasattr(msg, 'tool_calls'):
+                # 重新包装成干净的消息对象，确保不带任何 tool_call_id 等脏数据
+                if isinstance(msg, HumanMessage):
+                    clean_messages.append(HumanMessage(content=msg.content))
+                elif isinstance(msg, AIMessage):
+                    clean_messages.append(AIMessage(content=msg.content))
+
+        # 如果清理后没有消息（异常情况），至少把最后一条用户输入带上
+        if not clean_messages:
+            clean_messages = [state["messages"][-1]]
+
+        # 执行识别
+        try:
+            intent = self.intent_chain.invoke({"messages": clean_messages})
+        except Exception as e:
+            # 容错处理：如果意图识别挂了，默认走QA
+            print(f"⚠️ 意图识别异常: {e}")
+            return {"intent_type": "qa", "needs_human": False}
+        
+        needs_human = (intent.intent_type == "complain")
+        return {"intent_type": intent.intent_type, "needs_human": needs_human}
         
     def route_based_on_intent(self,state:AgentState):
         """路由函数：根据意图决定下一步"""

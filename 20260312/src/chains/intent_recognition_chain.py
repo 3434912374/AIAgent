@@ -16,3 +16,4 @@ def get_intent_chain(llm:ChatOpenAI):
      ])
      # 强制指定 method="function_calling" 来兼容 DeepSeek
      return prompt | llm.with_structured_output(UserIntent, method="function_calling")
+
