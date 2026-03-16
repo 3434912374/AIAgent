@@ -1,0 +1,9 @@
+rag:
+  dense_model: "BAAI/bge-small-zh-v1.5"  
+  rerank_model: "cross-encoder/ms-marco-MiniLM-L-6-v2"
+  rrf_k: 60
+  top_k: 3
+
+scheduler:
+  num_nodes: 5
+  ppo_timesteps: 1000  # 演示环境设为1000，生产环境建议10万+

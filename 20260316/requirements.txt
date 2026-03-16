@@ -1,0 +1,9 @@
+sentence-transformers
+faiss-cpu
+rank-bm25
+stable-baselines3
+gymnasium
+networkx
+opentelemetry-api
+opentelemetry-sdk
+pyyaml
